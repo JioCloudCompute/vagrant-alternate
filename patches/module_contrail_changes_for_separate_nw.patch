@@ -1,0 +1,39 @@
+diff --git a/manifests/vrouter.pp b/manifests/vrouter.pp
+index 76b5c29..551c194 100644
+--- a/manifests/vrouter.pp
++++ b/manifests/vrouter.pp
+@@ -70,7 +70,7 @@ class contrail::vrouter (
+   $package_ensure             = 'installed',
+   $manage_repo                = false,
+   $vrouter_interface          = 'vhost0',
+-  $vrouter_physical_interface = 'eth0',
++  $vrouter_physical_interface = 'eth2',
+   $vrouter_num_controllers    = 2,
+   $vrouter_gw                 = undef,
+   $metadata_proxy_secret      = 'set',
+@@ -87,6 +87,7 @@ class contrail::vrouter (
+   $log_file_size              = 10737418240,
+   $log_local                  = 1,
+   $debug                      = false,
++  $ipaddress                  = 0.0.0.0'
+ ) {
+ 
+   validate_bool($vgw_enabled)
+@@ -171,7 +172,7 @@ class contrail::vrouter (
+   # Due to a bug in vrouter on virtualbox, the following patch is required 
+   # It can be removed once the issue has been fixed
+   ##
+-  if ($::virtual == 'virtualbox') {
++  if ($::virtual == 'kvm') {
+     $vrouter_patch='modprobe vrouter;'
+   }
+   else
+@@ -290,7 +291,7 @@ class contrail::vrouter (
+       'DISCOVERY/server':                           value => $discovery_ip;
+       'DISCOVERY/max_control_nodes':                value => $vrouter_num_controllers;
+       'HYPERVISOR/type':                            value => $hypervisor_type;
+-      'NETWORKS/control_network_ip':                value => $vrouter_ip;
++      'NETWORKS/control_network_ip':                value => $ipaddress;
+       'VIRTUAL-HOST-INTERFACE/name':                value => 'vhost0';
+       'VIRTUAL-HOST-INTERFACE/ip':                  value => "${vrouter_ip}/${vrouter_cidr}";
+       'VIRTUAL-HOST-INTERFACE/gateway':             value => $vrouter_gw_orig;

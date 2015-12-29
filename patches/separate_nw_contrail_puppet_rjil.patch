@@ -1,0 +1,36 @@
+diff --git a/environment/vagrant-vbox.map.yaml b/environment/vagrant-vbox.map.yaml
+index 482adfc..34bc96b 100644
+--- a/environment/vagrant-vbox.map.yaml
++++ b/environment/vagrant-vbox.map.yaml
+@@ -1,4 +1,6 @@
+ image:
++  kvm:
++    trusty: 'ubuntu/trusty64'
+   virtualbox:
+     trusty: 'ubuntu/trusty64'
+   lxc:
+diff --git a/hiera/data/common.yaml b/hiera/data/common.yaml
+index a7b7529..9b02b1a 100644
+--- a/hiera/data/common.yaml
++++ b/hiera/data/common.yaml
+@@ -666,6 +666,7 @@ contrail::rabbit_password: "%{hiera('rabbit_admin_pass')}"
+ contrail::vrouter::metadata_proxy_secret: "%{hiera('nova_metadata_proxy_secret')}"
+ contrail::vrouter::keystone_admin_password: "%{hiera('admin_password')}"
+ contrail::interface: "%{hiera('private_interface')}"
++contrail::interface: "%{hiera('private_address')}"
+ 
+ contrail::manage_repo: false
+ contrail::vrouter::manage_repo: false
+diff --git a/hiera/data/env/vagrant-vbox.yaml b/hiera/data/env/vagrant-vbox.yaml
+index 75abdd1..49147b3 100644
+--- a/hiera/data/env/vagrant-vbox.yaml
++++ b/hiera/data/env/vagrant-vbox.yaml
+@@ -16,7 +16,7 @@ nova::compute::libvirt::libvirt_virt_type: qemu
+ # more appropriate value.
+ rjil::jiocloud::consul::service::interval: 120s
+ 
+-contrail::vrouter::vrouter_physical_interface: eth1
++contrail::vrouter::vrouter_physical_interface: eth2
+ 
+ rjil::system::accounts::active_users: [soren,bodepd,hkumar,jenkins,consul,pandeyop,jaspreet,vivek,ahmad,vaidy,himanshu,rohit,amar,abhishekl,anshup,varunarya,prashant,punituee]
+ rjil::system::accounts::sudo_users:
