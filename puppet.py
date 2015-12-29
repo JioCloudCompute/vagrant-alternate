@@ -45,17 +45,20 @@ machine_list = [
     {
         "name" : "stmon1",
         "ram": 4096,
-        "vcpus": 2
+        "vcpus": 2,
+        "disk": 80,
     },
     {
         "name" : "stmon2",
         "ram": 4096,
-        "vcpus": 2
+        "vcpus": 2,
+        "disk": 80,
     },
     {
         "name" : "st1",
         "ram": 4096,
-        "vcpus": 2
+        "vcpus": 2,
+        "disk": 80,
     },
     {
         "name" : "cp1",
@@ -115,7 +118,7 @@ def fix_cloud_dns(ip):
         add_dns_record(cl, ip)
 
 def PROVISION_VM(name):
-    logfile = "%s.log" % name
+    logfile = "./logs/%s.log" % name
     i = get_index(name)
     redir_port = 9900 + i
 
@@ -130,8 +133,12 @@ def PROVISION_VM(name):
     if name == "haproxy1":
         fix_cloud_dns(get_guestip(mac_address))
 
+    # For separate data and control plane
+    if name == 'cp1' or name == 'cp2' or name == 'gcp1':
+        ssh.execute(redir_port, "dhclient eth2", logfile)
+
     env_vars = dict()
-    env_vars.update({'hostname': name})
+    env_vars.update({'hostname': "%s.domain.name" % name})
     fsync_list,lines = process_provision.process("./provision.cmd", env_vars)
     for k,v in fsync_list.iteritems():
         ssh.sync_folder(redir_port, v, k, logfile)
@@ -150,24 +157,33 @@ def PROVISION_VM(name):
 
 def CREATE_VM(name):
     i = get_index(name)
+    disk_size = 40
     mc = machine_list[i]
     print "======================================"
     print "[Starting machine] ==> " + mc["name"]
     mac_address = "00:11:22:33:44:" + str(55 + i)
+    mac_address1 = "00:11:22:33:55:" + str(55 + i)
     print "[Mac address]      ==> " + mac_address
     redir_port = 9900 + i
     serial_port = 9700 + i
     print "[Redir Port]       ==> %d" % redir_port
     print "[Vcpus]            ==> %d" % mc["vcpus"]
     print "[RAM]              ==> %d" % mc["ram"]
+    if "disk" in mc:
+    	print "[DISK]             ==> %dG" % mc["disk"]
+        disk_size = mc["disk"]
+    else:
+	print "[DISK]             ==> 40G"
     print "======================================"
 
     if len(sys.argv) > 3 and sys.argv[3] == "new":
         create_disk = "yes"
     else:
         create_disk = "no"
-    cmd = """ %s/qemu.sh "%s" "%s" "%s" "%d" "%s" "%d" "%d" "%s" """ % \
-		(os.path.dirname(os.path.realpath(__file__)), mc["name"],mc["ram"],mc["vcpus"],redir_port,mac_address,i,serial_port,create_disk)
+    cmd = """ %s/qemu.sh "%s" "%s" "%s" "%d" "%s" "%s" "%d" "%d" %d "%s" """ % \
+		(os.path.dirname(os.path.realpath(__file__)), mc["name"],mc["ram"],mc["vcpus"],
+            redir_port,mac_address,mac_address1,
+            i,serial_port,disk_size,create_disk)
     print cmd
     os.system(cmd)
 
@@ -183,6 +199,8 @@ def CREATE_ALL(ignore_arg):
 def PROVISION_ALL(ignore_arg):
     tl = list()
     for mc in machine_list:
+        if mc["name"] == "bootstrap1":
+	   continue
         t = mp.Process(target=PROVISION_VM,args=(mc["name"],))
         tl.append(t)
         t.start()
