@@ -1,7 +1,9 @@
 images/
-images.old/
+images.*/
 logs/
 *.log
-puppet-rjil/
+puppet-rjil*/
 *.pyc
 *.swp
+patches/*
+
