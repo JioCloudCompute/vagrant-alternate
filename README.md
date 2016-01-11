@@ -1,23 +1,28 @@
 # vagrant-alternate
 Segregation of control and data plane
 Current vagrant setup is somewhat difficult to create an extra network interface to simulate separate control and data network path. Thus a QEMU/KVM based environment is created to host VMs with three network interfaces:
-1)	Management network
+
+1) Management network
 It is used by puppet and hosting script (orchestrate.py) to install/provision VMs according to their role. This is created using QEMU’s usermode networking (-netdev user flag). This is private network only visible to HOST and a VM.  Every VM gets 10.0.2.15 as IP address. QEMU’s usermode networking also provides a DNS server (10.0.2.3). 
-2)	Control network
+
+2) Control network
 It is used by openstack components to send/receive control packets. This interface is connected to a TAP interface, which is part of bridge (br0). This br0 has 192.168.100.0/24 CIDR. A DNSMASQ is run to listen for DHCP/DNS request on the bridge (br0). DNSMASQ application accepts an addn-host file to provide static DNS entries to the endpoints (VMs). This file is dynamically updated by the orchestrate.py script to add entries for DNS entries for VMs and also DNS entries <token>.service.consuldiscovery.linux2go.dk. After updating the file script sends SIGHUP signal to DNSMASQ process to re-read this file.
     
-3)	Data network
+3) Data network
 It is used by VMs to send network traffic. This interface is also connected to another TAP interface, which is part of another bridge (br1). This bridge has 172.24.133.0/24 CIDR. A DNSMASQ process is run to listen for DHCP/DNS request on this bridge.
 Besides these network interfaces, HOST port is also forward to Guest SSH port. This allows SSH connection to the VMs, for management. The serial port of the VM is also configured to be in TCP server mode. This allows one to see the serial logs.
 Puppet scripts are modified to say eth2 as physical interface for contrail vrouter (see the diffs at the end of this document).
+
 To create new VMs:
 $./orchestrate.py call t new
 This would create all the VMs as listed in the machine_list (python list of dict), with desired configuration (as mentioned in the dict).
+
 After the VMs are created, bootstrap1 VM has to be provision first. 
 $./orchestrate.py provision bootstrap1
 This would transfer all puppet files to the VM and execute the puppet scripts there. Also this would add DNS entry in addn-host file 
 <token>.service.consuldiscovery.linux2go.dk <IP address of bootstrap1>
 This resolves the DNS_blocker issue seen sometimes during provisioning of other VMs.
+
 Now provision all other VMs:
 ./orchestrate.py pall t
 This would take around 5-10 mins to finish, but the overall provision process would take another 15-20 mins.
@@ -25,6 +30,7 @@ SSH login:
 HOST port 9900 is forwarded for bootstrap1, 9901 for haproxy, basically incrementing port number for VMs (in list order).
 $ssh -i ./vm.pem vagrant@localhost –p 9900
  
+
 DIFF
 Puppet changes
 Diff –git a/environment/vagrant-vbox.map.yaml b/environment/vagrant-vbox.map.yaml
