@@ -13,6 +13,12 @@ export consul_discovery_token=#ENV[consul_discovery_token]
 mkdir -p /etc/facter/facts.d; [ -e '/etc/facter/facts.d/consul.txt' ] && exit 0; echo consul_discovery_token=${consul_discovery_token} > /etc/facter/facts.d/consul.txt
 echo consul_gossip_encrypt=`echo ${consul_discovery_token}| cut -b 1-15 | base64` >> /etc/facter/facts.d/consul.txt
 
+# Fix eth1 network
+echo "auto eth1" >> /etc/network/interfaces
+echo "iface eth1 inet dhcp" >> /etc/network/interfaces
+
+dhclient eth1
+
 # Fix the dns server
 echo "nameserver 192.168.100.1" > /etc/resolv.conf
 echo "nameserver 10.0.2.3" >> /etc/resolv.conf

@@ -1,5 +1,5 @@
 images/
-images.old/
+images.*/
 logs/
 *.log
 puppet-rjil/

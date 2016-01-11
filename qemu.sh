@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 # Base disk image
-BASE_IMG="/home/ubuntu/.vagrant.d/boxes/trusty64/0/libvirt/box.img"
+#BASE_IMG="/home/ubuntu/.vagrant.d/boxes/trusty64/0/libvirt/box.img"
+BASE_IMG="/home/ubuntu/puppet_temp/source/disk.img"
 
 # check if qemu is running
 if [ -e /tmp/qmp-sock-$1 ]
@@ -14,6 +15,7 @@ fi
 
 # Create qemu disk image.
 if [ ${10} == "yes" ]; then
+	echo qemu-img create -f qcow2 -b ${BASE_IMG} ./images/$1.img $9G >>./logs/$1.log 2>&1
 	qemu-img create -f qcow2 -b ${BASE_IMG} ./images/$1.img $9G >>./logs/$1.log 2>&1
 fi
 

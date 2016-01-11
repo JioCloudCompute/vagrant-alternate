@@ -3,7 +3,7 @@
 import subprocess
 import sys, os
 
-KEYFILE = "./puppet.key"
+KEYFILE = "./vm.pem"
 SSH_STRING = "ssh -q -o StrictHostKeyChecking=no "
 SSH_HOST = "vagrant@localhost"
 RSYNC_PATH = "sudo mkdir -p %s && sudo rsync"
