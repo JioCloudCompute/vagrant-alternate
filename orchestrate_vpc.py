@@ -13,29 +13,35 @@ dns_lock = mp.Lock()
 assert os.environ.get("consul_discovery_token") is not None, "Please set consul_discovery_token"
 assert os.environ.get("env") is not None, "Please set `env`"
 
+
+cloud_vm_name = "haproxy1"
+bootstrap_vm_name = "vpc-cfg1"
+external_vm_name = "httpproxy1"
+base_ip = "192.168.100."
+
 machine_list = [ 
-    {
-        "name" : "bootstrap1",
-        "ram": 1024,
-        "vcpus": 1
-    },
     {
         "name" : "haproxy1",
         "ram": 2048,
         "vcpus": 2
     },
     {
-        "name" : "oc1",
+        "name" : "vpc-ctrl1",
         "ram": 4096,
         "vcpus": 2
     },
     {
-        "name" : "ocdb1",
+        "name" : "vpc-ctrl2",
         "ram": 4096,
         "vcpus": 2
     },
     {
-        "name" : "ct1",
+        "name" : "vpc-cfg1",
+        "ram": 4096,
+        "vcpus": 2
+    },
+    {
+        "name" : "keystone1",
         "ram": 4096,
         "vcpus": 2
     },
@@ -63,33 +69,35 @@ machine_list = [
         "disk": 80,
     },
     {
-        "name" : "cp1",
+        "name" : "vpc-cp1",
         "ram": 4096,
         "vcpus": 4
     },
     {
-        "name" : "cp2",
+        "name" : "vpc-monitor1",
         "ram": 4096,
         "vcpus": 4
     },
-    {
-        "name" : "gcp1",
-        "ram": 4096,
-        "vcpus": 2
-    }
     ]
 
 def get_index(name):
     return [i for i, v in enumerate(machine_list) if v["name"] == name][0]
 
-def get_guestip(mac):
-    while True:
-        f = open("/var/run/qemu-dnsmasq-br0.leases", "r")
-        for line in f:
-            if re.search(r'%s'%mac, line):
-                tokens = line.split(" ")
-                return tokens[2]
-        f.close()
+def get_guestip(name):
+    i = get_index(name)
+    redir_port = 9900 + i
+    mc = machine_list[i]
+    logfile = "/tmp/puppet-ipaddress-%d" % redir_port
+    ssh.execute(redir_port, "ifconfig eth1", logfile)
+    f = open(logfile, "r")
+    for line in f:
+        if "inet addr:" in line:
+            m = re.search(r"inet addr:(.*?) B", line)
+            if m:
+                print "ip:",m.group(1)
+                f.close()
+                return m.group(1)
+    return None
 
 def add_dns_record(name,ip):
     dns_lock.acquire()
@@ -113,6 +121,28 @@ def add_dns_record(name,ip):
     os.system("sudo kill -SIGHUP %s" % pid)
     dns_lock.release()
 
+def add_dhcphostfile_record(name,ip,mac):
+    dns_lock.acquire()
+    f = open("/tmp/puppet.hostfile", "r")
+    lines = list()
+    for line in f:
+        if len(line.strip()) == 0:
+            continue
+        if name not in line:
+            tokens = line.split(",")
+            lines.append(line)
+    f.close()
+    f = open("/tmp/puppet.hostfile", "w")
+    for v in lines:
+        f.write("%s\n" % v)
+    f.write("%s,%s,%s\n" % (mac,ip,name) )
+    f.close()
+    # Get the pid of dnsmasq
+    pid = os.popen('pidof dnsmasq').read()
+    # Send signal to dnsmasq to clear its cache
+    os.system("sudo kill -SIGHUP %s" % pid)
+    dns_lock.release()
+
 def fix_cloud_dns(ip):
     cloud_list = [ "identity.jiocloud.com", "volume.jiocloud.com", "network.jiocloud.com",
    "compute.jiocloud.com", "image.jiocloud.com", "object.jiocloud.com" ]
@@ -120,28 +150,25 @@ def fix_cloud_dns(ip):
     for cl in cloud_list:
         add_dns_record(cl, ip)
 
+# Copies the puppet files and execute the puppet
 def PROVISION_VM(name):
     logfile = "./logs/%s.log" % name
     i = get_index(name)
     redir_port = 9900 + i
+    mc = machine_list[i]
 
-    mac_address = "00:11:22:33:44:" + str(55 + i)
-    ssh.execute(redir_port, "dhclient eth1",logfile)
-    print ("Fixing dns server")
-    add_dns_record(name, get_guestip(mac_address))
-    if name == "bootstrap1":
-        print ("Fixing dns server for consul service")
-        add_dns_record("%s.service.consuldiscovery.linux2go.dk" % os.environ.get("consul_discovery_token"), get_guestip(mac_address))
+    # Set hostname
+    ssh.execute(redir_port, "hostname %s" % name, logfile)
 
-    if name == "haproxy1":
-        fix_cloud_dns(get_guestip(mac_address))
-
-    # For separate data and control plane
-    if name == 'cp1' or name == 'cp2' or name == 'gcp1':
-        ssh.execute(redir_port, "dhclient eth2", logfile)
+    # ifconfig eth1
+    ssh.execute(redir_port, "dhclient eth1", logfile)
 
     env_vars = dict()
-    env_vars.update({'hostname': "%s" % name})
+    env_vars.update({'hostname': name})
+    env_vars.update({'env': os.environ.get("env")})
+    env_vars.update({"consul_discovery_token": os.environ.get("consul_discovery_token")})
+
+    # Process the provision.cmd file
     fsync_list,lines = process_provision.process("./provision.cmd", env_vars)
     for k,v in fsync_list.iteritems():
         ssh.sync_folder(redir_port, v, k, logfile)
@@ -151,21 +178,14 @@ def PROVISION_VM(name):
     for line in lines:
         f.write(line)
     f.close()
+
     # Transfer the file to remote
     ssh.sync_folder(redir_port, "/tmp/%s.provision.sh" % name, "/tmp/", logfile)
     # Set execute permission and run
-    ssh.execute(redir_port, "sudo 'hostname %s'" % name, logfile)
     ssh.execute(redir_port, "chmod a+x /tmp/%s.provision.sh" % name, logfile)
-    ssh.execute (redir_port, "/tmp/%s.provision.sh" % name, logfile)
+    ssh.execute (redir_port, "bash -l /tmp/%s.provision.sh" % name, logfile)
 
-def PATCH_VM(name):
-    logfile = "./logs/%s.log" % name
-    i = get_index(name)
-    redir_port = 9900 + i
-    ssh.sync_folder(redir_port, "./patches/%s" % sys.argv[3], "/tmp/", logfile)
-    ssh.execute(redir_port, "chmod a+x /tmp/%s" % sys.argv[3], logfile)
-    ssh.execute (redir_port, "/tmp/%s" % sys.argv[3], logfile)
-
+# Spawn qemu process as per machine_list
 def CREATE_VM(name):
     i = get_index(name)
     disk_size = 40
@@ -207,11 +227,25 @@ def CREATE_ALL(ignore_arg):
     for t in tl:
         t.join()
 
+def UP_ALL(ignore_arg):
+    # Program the /tmp/puppet.hosts
+    for mc in machine_list:
+        i = get_index(mc["name"])
+        ip = base_ip + str(i + 11)
+        if mc["name"] == cloud_vm_name:
+            fix_cloud_dns(ip)
+        if mc["name"] == bootstrap_vm_name:
+            add_dns_record("%s.service.consuldiscovery.linux2go.dk" % os.environ.get("consul_discovery_token"), ip)
+        add_dns_record(mc["name"], ip)
+        mac_address = "00:11:22:33:44:" + str(55 + i)
+        add_dhcphostfile_record(mc["name"], ip, mac_address)
+
 def PROVISION_ALL(ignore_arg):
     tl = list()
+        
     for mc in machine_list:
-        if mc["name"] == "bootstrap1":
-	   continue
+        if mc['name'] == external_vm_name:
+            continue
         t = mp.Process(target=PROVISION_VM,args=(mc["name"],))
         tl.append(t)
         t.start()
@@ -219,23 +253,12 @@ def PROVISION_ALL(ignore_arg):
     for t in tl:
         t.join()
 
-def TEST(ignore_arg):
-    print "Hello"
-
-def SSH(name):
-    i = get_index(name)
-    port = 9900 + i
-    print "Execute the following command:"
-    print "ssh -i ./vm.pem vagrant@localhost -o StrictHostKeyChecking=no -p %d" % port
-
 cmds = {
     "create": CREATE_VM,
     "provision": PROVISION_VM,
-    "patch": PATCH_VM,
+    "upall": UP_ALL,
     "call": CREATE_ALL,
     "pall": PROVISION_ALL,
-    "test": TEST,
-    "ssh": SSH,
 }
 
 if __name__ == "__main__":

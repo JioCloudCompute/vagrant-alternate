@@ -12,7 +12,7 @@ def execute(port,cmd,logfile):
     print ("Executing command on remote: %s" % cmd)
     f = open(logfile, "a")
     cmd = SSH_STRING + "-i %s -p %d " % (KEYFILE,port) + SSH_HOST + """ sudo %s """ % cmd
-    ssh = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    ssh = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     for line in ssh.stdout:
         sys.stdout.write("[%s]: " % logfile + line)
         sys.stdout.flush()
