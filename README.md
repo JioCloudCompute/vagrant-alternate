@@ -1,6 +1,23 @@
 # vagrant-alternate
 
 ```html
+<h3>
+Usage:
+
+source ./newtoken.sh
+export env="vagrant-kvm"
+
+To create all nodes:
+sudo -E ./orchestrate.py init
+
+To provision all nodes:
+sudo -E ./orchestrate.py run
+
+Note: if you clone new puppet repo, then following has to be done.
+all occurrence of "if ($::virtual == 'virtualbox') {" needs to be changed to "if ($::virtual == 'kvm') {".
+Since this is KVM based installation.
+</h3>
+
 Segregation of control and data plane
 Current vagrant setup is somewhat difficult to create an extra network interface to simulate separate control and data network path. Thus a QEMU/KVM based environment is created to host VMs with three network interfaces:
 
