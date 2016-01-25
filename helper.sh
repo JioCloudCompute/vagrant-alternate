@@ -9,15 +9,9 @@ function q_list() {
 }
 
 function q_ssh() {
-<<<<<<< HEAD
-    local port=`ps -f -C qemu-system-x86_64 | grep -m 1 " $1"| grep -o "tcp::.*"|cut -d ":" -f3|cut -d"-" -f1`
-    ssh-keygen -f "/home/ubuntu/.ssh/known_hosts" -R [localhost]:${port}
-    ssh -i ./vm.pem vagrant@localhost -o StrictHostKeyChecking=no -p ${port}
-=======
     local port=`ps -f -C qemu-system-x86_64 | grep -m 1 " $1"| grep -oP "hostfwd=tcp::.*?:22"|cut -d":" -f3|cut -d"-" -f1`
     ssh-keygen -f "/home/ubuntu/.ssh/known_hosts" -R [localhost]:${port}
     ssh -i ./vm.pem vagrant@localhost -o StrictHostKeyChecking=no -p ${port} ${@:2}
->>>>>>> vpc
 }
 
 function q_net() {
