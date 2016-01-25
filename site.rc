@@ -1,0 +1,77 @@
+{
+    "nodes": [
+        {
+            "name": "haproxy1",
+             "ram": 2048,
+             "vcpus": 2,
+             "cloud_vm": 1
+        },
+        {
+            "name": "vpc-ctrl1",
+            "ram": 4096,
+            "vcpus": 2
+        }, 
+        {
+            "name": "vpc-ctrl2",
+            "ram": 4096,
+            "vcpus": 2
+        }, 
+        {
+            "name": "vpc-cfg1",
+            "ram": 4096,
+            "vcpus": 2,
+            "bootstrap_vm": 1
+        }, 
+        {
+            "name": "keystone1",
+            "ram": 4096,
+            "vcpus": 2
+        }, 
+        {
+            "name": "stmonleader1",
+            "ram": 4096,
+            "vcpus": 2
+        }, 
+        {
+            "name": "stmon1",
+            "ram": 4096,
+            "vcpus": 2
+        }, 
+        {
+            "name": "stmon2",
+            "ram": 4096,
+            "vcpus": 2
+        }, 
+        {
+            "name": "st1",
+            "ram": 4096,
+            "vcpus": 2
+        }, 
+        {
+            "name": "vpc-cp1",
+            "ram": 4096,
+            "vcpus": 4
+        }, 
+        {
+            "name": "vpc-monitor1",
+            "ram": 4096,
+            "vcpus": 4
+        } 
+    ],
+
+    "networks": [
+        {
+            "name": "br0",
+            "ip": "192.168.100.1",
+            "netmask": "255.255.255.0",
+            "mac-base": "00:11:22:33:44",
+            "dns": 1
+        },
+        {
+            "name": "br1",
+            "ip": "172.24.133.1",
+            "netmask": "255.255.255.0",
+            "mac-base": "00:11:22:33:55"
+        }
+    ]
+}

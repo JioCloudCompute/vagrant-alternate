@@ -6,4 +6,4 @@ puppet-rjil*/
 *.pyc
 *.swp
 patches/*
-
+qemu-if*

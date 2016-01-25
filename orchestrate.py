@@ -6,90 +6,61 @@ import re
 import ssh
 import multiprocessing as mp
 import process_provision
+import json
+import pexpect
 
-# DNS lock
 dns_lock = mp.Lock()
-
 assert os.environ.get("consul_discovery_token") is not None, "Please set consul_discovery_token"
 assert os.environ.get("env") is not None, "Please set `env`"
 
-machine_list = [ 
-    {
-        "name" : "bootstrap1",
-        "ram": 1024,
-        "vcpus": 1
-    },
-    {
-        "name" : "haproxy1",
-        "ram": 2048,
-        "vcpus": 2
-    },
-    {
-        "name" : "oc1",
-        "ram": 4096,
-        "vcpus": 2
-    },
-    {
-        "name" : "ocdb1",
-        "ram": 4096,
-        "vcpus": 2
-    },
-    {
-        "name" : "ct1",
-        "ram": 4096,
-        "vcpus": 2
-    },
-    {
-        "name" : "stmonleader1",
-        "ram": 4096,
-        "vcpus": 2
-    },
-    {
-        "name" : "stmon1",
-        "ram": 4096,
-        "vcpus": 2,
-        "disk": 80,
-    },
-    {
-        "name" : "stmon2",
-        "ram": 4096,
-        "vcpus": 2,
-        "disk": 80,
-    },
-    {
-        "name" : "st1",
-        "ram": 4096,
-        "vcpus": 2,
-        "disk": 80,
-    },
-    {
-        "name" : "cp1",
-        "ram": 4096,
-        "vcpus": 4
-    },
-    {
-        "name" : "cp2",
-        "ram": 4096,
-        "vcpus": 4
-    },
-    {
-        "name" : "gcp1",
-        "ram": 4096,
-        "vcpus": 2
-    }
-    ]
+BASE_IMG = "/home/ubuntu/puppet_temp/source/disk.img"
 
-def get_index(name):
-    return [i for i, v in enumerate(machine_list) if v["name"] == name][0]
+with open("site.rc") as json_data_file:
+    config_obj = json.load(json_data_file)
 
-def get_guestip(mac):
-    while True:
-        f = open("/var/run/qemu-dnsmasq-br0.leases", "r")
-        for line in f:
-            if re.search(r'%s'%mac, line):
-                tokens = line.split(" ")
-                return tokens[2]
-        f.close()
+def network_str(name,i):
+    pnet = [v for j, v in enumerate(config_obj["networks"]) if ("dns" in v and v["dns"] == 1) ][0]
+    maddr = pnet["mac-base"].strip() + ":" + str(55 + i)
+    port = 9900 + i
+
+    if pnet is None:
+        print ("site.rc error! no primary network defined (one with dns:true)")
+        os.exit(1)
+
+    _str = " -netdev user,id=NAME,hostname=NAME,hostfwd=tcp::%d-:22 -device e1000,netdev=NAME" % port
+    n_str  = _str.replace("NAME", name)
+    _str = " -netdev type=tap,id=TAP,ifname=TAP,script=./qemu-ifup-%s -device e1000,netdev=TAP,mac=%s" % (pnet["name"], maddr)
+    n_str  += _str.replace("TAP", "%s-tap%d" % (pnet["name"],i))
+
+    for nw in config_obj["networks"]:
+        maddr = nw["mac-base"].strip() + ":" + str(55 + i)
+        if nw["name"] != pnet["name"]:
+            _str =" -netdev type=tap,id=TAP,ifname=TAP,script=./qemu-ifup-%s -device e1000,netdev=TAP,mac=%s" % (nw["name"],maddr) 
+            n_str += _str.replace("TAP", "%s-tap%s" % (nw["name"],i))
+    return n_str
+
+def qemu_command(name,i):
+    mc = config_obj["nodes"][i]
+    sport = 9700 + i
+    ram = mc["ram"]
+    vcpus = mc["vcpus"]
+    name = mc["name"]
+
+    # Qemu command
+    cmd = """
+sudo qemu-system-x86_64 -enable-kvm -name %s -cpu kvm64 --enable-kvm \
+ -m %d -smp %d -drive file=./images/%s.img -serial tcp::%d,server,nowait -vnc :%d \
+ -monitor unix:/tmp/%s.monitor.sock,server,nowait %s 2>&1 >./logs/%s.log &
+""" % (name, ram, vcpus, name, sport, i, name, network_str(name,i),name)
+
+    # Qemu img command
+    qemu_img_cmd = "qemu-img create -f qcow2 -b %s ./images/%s.img 40G 2>&1 > ./logs/%s.log" % (BASE_IMG, name, name)
+    if os.system(qemu_img_cmd) != 0:
+        print ("Failed: %s" % qemu_img_cmd)
+        sys.exit(1)
+    if os.system(cmd) != 0:
+        print ("Failed: %s" % cmd)
+        sys.exit(1)
 
 def add_dns_record(name,ip):
     dns_lock.acquire()
@@ -113,6 +84,28 @@ def add_dns_record(name,ip):
     os.system("sudo kill -SIGHUP %s" % pid)
     dns_lock.release()
 
+def add_dhcphostfile_record(name,ip,mac):
+    dns_lock.acquire()
+    f = open("/tmp/puppet.hostfile", "r")
+    lines = list()
+    for line in f:
+        if len(line.strip()) == 0:
+            continue
+        if name not in line:
+            tokens = line.split(",")
+            lines.append(line)
+    f.close()
+    f = open("/tmp/puppet.hostfile", "w")
+    for v in lines:
+        f.write("%s\n" % v)
+    f.write("%s,%s,%s,30d\n" % (mac,ip,name) )
+    f.close()
+    # Get the pid of dnsmasq
+    pid = os.popen('pidof dnsmasq').read()
+    # Send signal to dnsmasq to clear its cache
+    os.system("sudo kill -SIGHUP %s" % pid)
+    dns_lock.release()
+
 def fix_cloud_dns(ip):
     cloud_list = [ "identity.jiocloud.com", "volume.jiocloud.com", "network.jiocloud.com",
    "compute.jiocloud.com", "image.jiocloud.com", "object.jiocloud.com" ]
@@ -120,28 +113,40 @@ def fix_cloud_dns(ip):
     for cl in cloud_list:
         add_dns_record(cl, ip)
 
-def PROVISION_VM(name):
+def wait_for_vm(i):
+    port = 9700 + i
+    vm = pexpect.spawn('telnet localhost %d' % port)
+    while True:
+        vm.sendline("\n")
+        try:
+            if vm.expect('vagrant-ubuntu-trusty-64 login:', timeout=60) == 0:
+                break
+        except EOF:
+            vm.sendline("\n")
+        except TIMEOUT:
+            vm.sendline("\n")
+    vm.close()
+
+# Copies the puppet files and execute the puppet
+def provision_vm(name,i):
     logfile = "./logs/%s.log" % name
-    i = get_index(name)
     redir_port = 9900 + i
 
-    mac_address = "00:11:22:33:44:" + str(55 + i)
-    ssh.execute(redir_port, "dhclient eth1",logfile)
-    print ("Fixing dns server")
-    add_dns_record(name, get_guestip(mac_address))
-    if name == "bootstrap1":
-        print ("Fixing dns server for consul service")
-        add_dns_record("%s.service.consuldiscovery.linux2go.dk" % os.environ.get("consul_discovery_token"), get_guestip(mac_address))
+    print ("Waiting for %s to boot" % name)
+    wait_for_vm(i)
 
-    if name == "haproxy1":
-        fix_cloud_dns(get_guestip(mac_address))
+    # Set hostname
+    ssh.execute(redir_port, "hostname %s" % name, logfile)
 
-    # For separate data and control plane
-    if name == 'cp1' or name == 'cp2' or name == 'gcp1':
-        ssh.execute(redir_port, "dhclient eth2", logfile)
+    # ifconfig eth1 (primary network must be eth1 always in qemu command)
+    ssh.execute(redir_port, "dhclient eth1", logfile)
 
     env_vars = dict()
-    env_vars.update({'hostname': "%s" % name})
+    env_vars.update({'hostname': name})
+    env_vars.update({'env': os.environ.get("env")})
+    env_vars.update({"consul_discovery_token": os.environ.get("consul_discovery_token")})
+
+    # Process the provision.cmd file
     fsync_list,lines = process_provision.process("./provision.cmd", env_vars)
     for k,v in fsync_list.iteritems():
         ssh.sync_folder(redir_port, v, k, logfile)
@@ -151,92 +156,90 @@ def PROVISION_VM(name):
     for line in lines:
         f.write(line)
     f.close()
+
     # Transfer the file to remote
     ssh.sync_folder(redir_port, "/tmp/%s.provision.sh" % name, "/tmp/", logfile)
     # Set execute permission and run
-    ssh.execute(redir_port, "sudo 'hostname %s'" % name, logfile)
     ssh.execute(redir_port, "chmod a+x /tmp/%s.provision.sh" % name, logfile)
-    ssh.execute (redir_port, "/tmp/%s.provision.sh" % name, logfile)
+    ssh.execute (redir_port, "bash -l /tmp/%s.provision.sh" % name, logfile)
 
-def PATCH_VM(name):
-    logfile = "./logs/%s.log" % name
-    i = get_index(name)
-    redir_port = 9900 + i
-    ssh.sync_folder(redir_port, "./patches/%s" % sys.argv[3], "/tmp/", logfile)
-    ssh.execute(redir_port, "chmod a+x /tmp/%s" % sys.argv[3], logfile)
-    ssh.execute (redir_port, "/tmp/%s" % sys.argv[3], logfile)
+# Spawn qemu process as per machine_list
+def create_vm(name,i):
+#    disk_size = 40
+#    mc = config_obj["nodes"][i]
+#    print "======================================"
+#    print "[Starting machine] ==> " + mc["name"]
+#    mac_address = "00:11:22:33:44:" + str(55 + i)
+#    mac_address1 = "00:11:22:33:55:" + str(55 + i)
+#    print "[Mac address]      ==> " + mac_address
+#    redir_port = 9900 + i
+#    serial_port = 9700 + i
+#    print "[Redir Port]       ==> %d" % redir_port
+#    print "[Vcpus]            ==> %d" % mc["vcpus"]
+#    print "[RAM]              ==> %d" % mc["ram"]
+#    if "disk" in mc:
+#    	print "[DISK]             ==> %dG" % mc["disk"]
+#        disk_size = mc["disk"]
+#    else:
+#	print "[DISK]             ==> 40G"
+#    print "======================================"
+#
+#    if len(sys.argv) > 3 and sys.argv[3] == "new":
+#        create_disk = "yes"
+#    else:
+#        create_disk = "no"
+#    cmd = """ %s/qemu.sh "%s" "%s" "%s" "%d" "%s" "%s" "%d" "%d" %d "%s" """ % \
+#		(os.path.dirname(os.path.realpath(__file__)), mc["name"],mc["ram"],mc["vcpus"],
+#            redir_port,mac_address,mac_address1,
+#            i,serial_port,disk_size,create_disk)
+#    print cmd
+#    os.system(cmd)
+    qemu_command(name,i)
 
-def CREATE_VM(name):
-    i = get_index(name)
-    disk_size = 40
-    mc = machine_list[i]
-    print "======================================"
-    print "[Starting machine] ==> " + mc["name"]
-    mac_address = "00:11:22:33:44:" + str(55 + i)
-    mac_address1 = "00:11:22:33:55:" + str(55 + i)
-    print "[Mac address]      ==> " + mac_address
-    redir_port = 9900 + i
-    serial_port = 9700 + i
-    print "[Redir Port]       ==> %d" % redir_port
-    print "[Vcpus]            ==> %d" % mc["vcpus"]
-    print "[RAM]              ==> %d" % mc["ram"]
-    if "disk" in mc:
-    	print "[DISK]             ==> %dG" % mc["disk"]
-        disk_size = mc["disk"]
-    else:
-	print "[DISK]             ==> 40G"
-    print "======================================"
+if sys.argv[1] == 'init':
+    # Get the primary network (then one which DNS true)
+    primary_network = [v for i, v in enumerate(config_obj["networks"]) if ("dns" in v and v["dns"] == 1) ][0]
+    base_ip = ".".join(primary_network["ip"].split(".")[:3])
 
-    if len(sys.argv) > 3 and sys.argv[3] == "new":
-        create_disk = "yes"
-    else:
-        create_disk = "no"
-    cmd = """ %s/qemu.sh "%s" "%s" "%s" "%d" "%s" "%s" "%d" "%d" %d "%s" """ % \
-		(os.path.dirname(os.path.realpath(__file__)), mc["name"],mc["ram"],mc["vcpus"],
-            redir_port,mac_address,mac_address1,
-            i,serial_port,disk_size,create_disk)
-    print cmd
-    os.system(cmd)
+    # Create network
+    for nw in config_obj["networks"]:
+        if "dns" in nw and nw["dns"]:
+            os.system("./network_dns.sh %s %s %s" % (nw["name"],nw["ip"],nw["netmask"]))
+        else:
+            os.system("./network.sh %s %s %s" % (nw["name"],nw["ip"],nw["netmask"]))
 
-def CREATE_ALL(ignore_arg):
-    tl = list()
-    for mc in machine_list:
-        t = mp.Process(target=CREATE_VM,args=(mc["name"],))
-        t.start()
+    # Process the nodes for DNS and IP arrangements
+    for i,mc in enumerate(config_obj["nodes"]):
+        maddr = primary_network["mac-base"] + str(55 + i)
+        ip = base_ip + "." + str(11 + i)
 
-    for t in tl:
-        t.join()
+        # If the VM is consul bootstrap server
+        if "bootstrap_vm" in mc and mc["bootstrap_vm"]:
+            add_dns_record("%s.service.consuldiscovery.linux2go.dk" % \
+                os.environ.get("consul_discovery_token"), ip)
 
-def PROVISION_ALL(ignore_arg):
-    tl = list()
-    for mc in machine_list:
-        if mc["name"] == "bootstrap1":
-	   continue
-        t = mp.Process(target=PROVISION_VM,args=(mc["name"],))
+        # If the VM is jiocloud VM
+        if "cloud_vm" in mc and mc["cloud_vm"]:
+            fix_cloud_dns(ip)
+        
+        add_dns_record(mc["name"], ip)
+        mac_address = "00:11:22:33:44:" + str(55 + i)
+        add_dhcphostfile_record(mc["name"], ip, mac_address)
+
+        # Create the VM
+        create_vm(mc["name"], i)
+
+if sys.argv[1] == 'run':
+    for i,mc in enumerate(config_obj["nodes"]):
+        if "bootstrap_vm" in mc and mc["bootstrap_vm"]:
+            print ("Provisioning %s" % mc["name"])
+            provision_vm(mc["name"], i)
+
+    for i,mc in enumerate(config_obj["nodes"]):
+        tl = list()
+        t = mp.Process(target=provision_vm,args=(mc["name"],i))
         tl.append(t)
         t.start()
 
     for t in tl:
         t.join()
-
-def TEST(ignore_arg):
-    print "Hello"
-
-def SSH(name):
-    i = get_index(name)
-    port = 9900 + i
-    print "Execute the following command:"
-    print "ssh -i ./vm.pem vagrant@localhost -o StrictHostKeyChecking=no -p %d" % port
-
-cmds = {
-    "create": CREATE_VM,
-    "provision": PROVISION_VM,
-    "patch": PATCH_VM,
-    "call": CREATE_ALL,
-    "pall": PROVISION_ALL,
-    "test": TEST,
-    "ssh": SSH,
-}
-
-if __name__ == "__main__":
-    cmds[sys.argv[1]](sys.argv[2])
