@@ -6,4 +6,8 @@ puppet-rjil*/
 *.pyc
 *.swp
 patches/*
+<<<<<<< HEAD
 
+=======
+qemu-if*
+>>>>>>> vpc

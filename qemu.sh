@@ -27,6 +27,8 @@ sudo qemu-system-x86_64 -enable-kvm -name $1 \
 	-drive file=./images/$1.img,if=virtio \
 	-netdev user,id=prtap-$1,hostname=$1,hostfwd="tcp::$4-:22" -device e1000,netdev=prtap-$1 \
 	-netdev type=tap,id=tap-$1,ifname=tap-$1 -device e1000,netdev=tap-$1,mac=$5 \
-	-netdev type=tap,id=ptap-$1,ifname=ptap-$1,script=./qemu-ifup -device e1000,netdev=ptap-$1,mac=$6 \
 	-vnc :$7  -monitor unix:/tmp/$1.monitor.sock,server,nowait \
     -serial tcp::$8,server,nowait >>./logs/$1.log 2>& 1&
+
+#	-netdev type=tap,id=tap-$1,ifname=tap-$1 -device e1000,netdev=tap-$1,mac=$5 \
+#	-netdev type=tap,id=ptap-$1,ifname=ptap-$1,script=./qemu-ifup -device e1000,netdev=ptap-$1,mac=$6 \

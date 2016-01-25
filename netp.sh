@@ -14,7 +14,11 @@ echo "[Error] Failed assign IP to br0"
 exit 2
 fi
 
+<<<<<<< HEAD
 dnsmasq --strict-order --except-interface=lo --interface=br0 --listen-address=192.168.100.1 --bind-interfaces --dhcp-range=192.168.100.100,192.168.100.200 --conf-file= --no-hosts --addn-hosts=/tmp/puppet.hosts --pid-file=/var/run/qemu-dnsmasq-br0.pid --dhcp-leasefile=/var/run/qemu-dnsmasq-br0.leases --dhcp-no-override
+=======
+dnsmasq --strict-order --except-interface=lo --interface=br0 --listen-address=192.168.100.1 --bind-interfaces --dhcp-range=192.168.100.100,192.168.100.200 --conf-file= --no-hosts --addn-hosts=/tmp/puppet.hosts --pid-file=/var/run/qemu-dnsmasq-br0.pid --dhcp-leasefile=/var/run/qemu-dnsmasq-br0.leases --dhcp-no-override --dhcp-fqdn --domain=domain.name --dhcp-hostfile=/tmp/puppet.hostfile
+>>>>>>> vpc
 if [ $? -ne 0 ]
 then
 echo "[Error] Failed run dnsmasq to br0"
