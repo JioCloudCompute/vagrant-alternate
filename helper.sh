@@ -5,7 +5,17 @@ function q_killall() {
 }
 
 function q_list() {
-    ps -afx|grep qemu
+    IFS=$'\n'
+    nodes=($(ps -f -C qemu-system-x86_64| grep -o "name .* \-cpu"|cut -d " " -f2))
+    ports=($(ps -f -C qemu-system-x86_64 | grep -oP "hostfwd=tcp::.*?:22"|cut -d":" -f3|cut -d"-" -f1))
+    sports=($(ps -f -C qemu-system-x86_64|grep -o "\-serial tcp::.*,server,nowait -vnc"| cut -d "," -f1|cut -d":" -f3))
+    unset IFS
+    printf "%-50s %8s %10s\n" "Node" "SSH Port" "Serial Port"
+    printf "=======================================================================\n"
+    for i in "${!nodes[@]}"
+    do
+        printf "%-50s %-8s %-10s\n" ${nodes[$i]} ${ports[$i]} ${sports[$i]}
+    done
 }
 
 function q_ssh() {

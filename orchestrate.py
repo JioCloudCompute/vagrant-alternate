@@ -15,7 +15,16 @@ assert os.environ.get("env") is not None, "Please set `env`"
 
 BASE_IMG = "/home/ubuntu/puppet_temp/source/disk.img"
 
-with open("site.rc") as json_data_file:
+if len(sys.argv) == 1:
+    print ("""
+Usage:
+    sudo -E %s <site.rc> run/init
+         run - provision all nodes.
+         init - create and boot all VMs/nodes.""" % sys.argv[0])
+    sys.exit(0);
+conf_file = sys.argv[1]
+
+with open(conf_file) as json_data_file:
     config_obj = json.load(json_data_file)
 
 def network_str(name,i):
@@ -196,7 +205,7 @@ def create_vm(name,i):
 #    os.system(cmd)
     qemu_command(name,i)
 
-if sys.argv[1] == 'init':
+if sys.argv[2] == 'init':
     # Get the primary network (then one which DNS true)
     primary_network = [v for i, v in enumerate(config_obj["networks"]) if ("dns" in v and v["dns"] == 1) ][0]
     base_ip = ".".join(primary_network["ip"].split(".")[:3])
@@ -229,7 +238,7 @@ if sys.argv[1] == 'init':
         # Create the VM
         create_vm(mc["name"], i)
 
-if sys.argv[1] == 'run':
+if sys.argv[2] == 'run':
     for i,mc in enumerate(config_obj["nodes"]):
         if "bootstrap_vm" in mc and mc["bootstrap_vm"]:
             print ("Provisioning %s" % mc["name"])
