@@ -44,7 +44,7 @@ def network_str(name,i):
     for nw in config_obj["networks"]:
         maddr = nw["mac-base"].strip() + ":" + str(55 + i)
         if nw["name"] != pnet["name"]:
-            _str =" -netdev type=tap,id=TAP,ifname=TAP,script=./qemu-ifup-%s -device e1000,netdev=TAP,mac=%s" % (nw["name"],maddr)
+            _str =" -netdev type=tap,id=TAP,ifname=TAP,script=./qemu-ifup-%s -device e1000,netdev=TAP,mac=%s" % (nw["name"],maddr) 
             n_str += _str.replace("TAP", "%s-tap%s" % (nw["name"],i))
     return n_str
 
@@ -159,7 +159,7 @@ def provision_vm(name,i):
     fsync_list,lines = process_provision.process("./provision.cmd", env_vars)
     for k,v in fsync_list.iteritems():
         ssh.sync_folder(redir_port, v, k, logfile)
-
+        
     # Write the lines to remote tmp file
     f = open("/tmp/%s.provision.sh" % name, "w")
     for line in lines:
@@ -174,6 +174,35 @@ def provision_vm(name,i):
 
 # Spawn qemu process as per machine_list
 def create_vm(name,i):
+#    disk_size = 40
+#    mc = config_obj["nodes"][i]
+#    print "======================================"
+#    print "[Starting machine] ==> " + mc["name"]
+#    mac_address = "00:11:22:33:44:" + str(55 + i)
+#    mac_address1 = "00:11:22:33:55:" + str(55 + i)
+#    print "[Mac address]      ==> " + mac_address
+#    redir_port = 9900 + i
+#    serial_port = 9700 + i
+#    print "[Redir Port]       ==> %d" % redir_port
+#    print "[Vcpus]            ==> %d" % mc["vcpus"]
+#    print "[RAM]              ==> %d" % mc["ram"]
+#    if "disk" in mc:
+#    	print "[DISK]             ==> %dG" % mc["disk"]
+#        disk_size = mc["disk"]
+#    else:
+#	print "[DISK]             ==> 40G"
+#    print "======================================"
+#
+#    if len(sys.argv) > 3 and sys.argv[3] == "new":
+#        create_disk = "yes"
+#    else:
+#        create_disk = "no"
+#    cmd = """ %s/qemu.sh "%s" "%s" "%s" "%d" "%s" "%s" "%d" "%d" %d "%s" """ % \
+#		(os.path.dirname(os.path.realpath(__file__)), mc["name"],mc["ram"],mc["vcpus"],
+#            redir_port,mac_address,mac_address1,
+#            i,serial_port,disk_size,create_disk)
+#    print cmd
+#    os.system(cmd)
     qemu_command(name,i)
 
 if sys.argv[2] == 'init':
@@ -201,7 +230,7 @@ if sys.argv[2] == 'init':
         # If the VM is jiocloud VM
         if "cloud_vm" in mc and mc["cloud_vm"]:
             fix_cloud_dns(ip)
-
+        
         add_dns_record(mc["name"], ip)
         mac_address = "00:11:22:33:44:" + str(55 + i)
         add_dhcphostfile_record(mc["name"], ip, mac_address)
@@ -231,3 +260,4 @@ then the target node will become corrupt."""
     for i,mc in enumerate(config_obj["nodes"]):
         if sys.argv[3] == mc["name"]:
             provision_vm(mc["name"], i)
+
