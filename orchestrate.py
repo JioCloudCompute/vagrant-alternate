@@ -13,7 +13,7 @@ dns_lock = mp.Lock()
 assert os.environ.get("consul_discovery_token") is not None, "Please set consul_discovery_token"
 assert os.environ.get("env") is not None, "Please set `env`"
 
-BASE_IMG = "/home/ubuntu/puppet_temp/source/disk.img"
+BASE_IMG = "/home/cp22/kvm-stack/vagrant-alternate/disk.img"
 
 if len(sys.argv) == 1:
     print ("""
@@ -252,3 +252,12 @@ if sys.argv[2] == 'run':
 
     for t in tl:
         t.join()
+
+if sys.argv[2] == 'srun':
+    print ("""
+This is a dangerous command. if you run this command for previously provisioned
+node then node may become corrupt. Run this when a node is added after all nodes
+are provisioned.""") 
+    for i,mc in enumerate(config_obj["nodes"]):
+        if sys.argv[3] == mc["name"]:
+           provision_vm(mc["name"],i)

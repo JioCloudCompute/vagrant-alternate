@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+function q_netclean() {
+	sudo rm /tmp/puppet.hosts
+	sudo rm /tmp/puppet.hostfile
+	sudo touch /tmp/puppet.hosts
+	sudo touch /tmp/puppet.hostfile
+}
+
 function q_killall() {
     sudo kill -9 `pidof qemu-system-x86_64`
 }

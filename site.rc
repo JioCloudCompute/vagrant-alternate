@@ -1,10 +1,16 @@
 {
     "nodes": [
         {
+            "name": "bootstrap1",
+            "ram": 2048,
+            "vcpus": 1,
+            "bootstrap_vm": 1
+        },
+        {
             "name": "haproxy1",
-             "ram": 2048,
-             "vcpus": 2,
-             "cloud_vm": 1
+            "ram": 2048,
+            "vcpus": 2,
+            "cloud_vm": 1
         },
         {
             "name": "vpc-ctrl1",
@@ -19,8 +25,7 @@
         {
             "name": "vpc-cfg1",
             "ram": 4096,
-            "vcpus": 2,
-            "bootstrap_vm": 1
+            "vcpus": 2
         }, 
         {
             "name": "keystone1",
