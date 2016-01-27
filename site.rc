@@ -3,8 +3,13 @@
         {
             "name": "haproxy1",
              "ram": 2048,
-             "vcpus": 2,
+             "vcpus": 1,
              "cloud_vm": 1
+        },
+        {
+            "name": "haproxy2",
+            "ram": 4096,
+            "vcpus": 1
         },
         {
             "name": "vpc-ctrl1",

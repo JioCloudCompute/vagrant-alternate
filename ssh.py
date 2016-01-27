@@ -8,6 +8,13 @@ SSH_STRING = "ssh -q -o StrictHostKeyChecking=no "
 SSH_HOST = "vagrant@localhost"
 RSYNC_PATH = "sudo mkdir -p %s && sudo rsync"
 
+def check_connection_state(port):
+    cmd = SSH_STRING + "-i %s -p %d " % (KEYFILE,port) + SSH_HOST + """ sudo %s """ % "ls"
+    ret = os.system(cmd)
+    if ret != 0:
+        return False
+    return True
+
 def execute(port,cmd,logfile):
     print ("Executing command on remote: %s" % cmd)
     f = open(logfile, "a")

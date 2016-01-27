@@ -123,18 +123,9 @@ def fix_cloud_dns(ip):
         add_dns_record(cl, ip)
 
 def wait_for_vm(i):
-    port = 9700 + i
-    vm = pexpect.spawn('telnet localhost %d' % port)
-    while True:
-        vm.sendline("\n")
-        try:
-            if vm.expect('vagrant-ubuntu-trusty-64 login:', timeout=60) == 0:
-                break
-        except pexpect.EOF:
-            vm.sendline("\n")
-        except pexpect.TIMEOUT:
-            vm.sendline("\n")
-    vm.close()
+    redir_port = 9900 + i
+    while ssh.check_connection_state(redir_port) == False:
+        pass
 
 # Copies the puppet files and execute the puppet
 def provision_vm(name,i):
@@ -217,6 +208,8 @@ if sys.argv[2] == 'run':
 
     for i,mc in enumerate(config_obj["nodes"]):
         tl = list()
+        if "bootstrap_vm" in mc and mc["bootstrap_vm"]:
+            continue
         t = mp.Process(target=provision_vm,args=(mc["name"],i))
         tl.append(t)
         t.start()

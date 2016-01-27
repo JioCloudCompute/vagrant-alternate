@@ -61,6 +61,11 @@
             "name": "gcp1",
             "ram": 4096,
             "vcpus": 4
+        },
+        {
+            "name": "ocp1",
+            "ram": 4096,
+            "vcpus": 1
         } 
     ],
 
