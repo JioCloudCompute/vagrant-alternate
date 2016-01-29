@@ -5,7 +5,7 @@
 Usage:
 
 source ./newtoken.sh
-export env="vagrant-kvm"
+export env="vagrant-vbox"
 
 To create all nodes:
 sudo -E ./orchestrate.py init
